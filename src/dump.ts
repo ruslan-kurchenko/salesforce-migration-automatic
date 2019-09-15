@@ -13,11 +13,24 @@ function getTargetFields(query: DumpQuery, describer: Describer) {
   if (query.target === "query" && query.fields) {
     return query.fields;
   }
+
   const description = describer.findSObjectDescription(query.object);
   if (!description) {
     throw new Error(`No object description information found: ${query.object}`);
   }
-  return description.fields.map(field => field.name);
+
+  let fields;
+  if (query.target === "related" && query.fields) {
+    const refs = description.fields
+      .filter(field => field.createable && field.type === "reference")
+      .map(field => field.name);
+
+    fields = [...query.fields, ...refs];
+  } else {
+    fields = description.fields.map(field => field.name);
+  }
+
+  return fields;
 }
 
 async function executeQuery(conn: Connection, soql: string) {
@@ -43,7 +56,7 @@ async function queryRecords(
   soql += query.scope ? ` USING SCOPE ${query.scope}` : "";
   soql += query.condition ? ` WHERE ${query.condition}` : "";
   soql += query.orderby ? ` ORDER BY ${query.orderby}` : "";
-  soql += query.condition ? ` LIMIT ${query.limit}` : "";
+  soql += query.limit ? ` LIMIT ${query.limit}` : "";
   soql += query.offset ? ` OFFSET ${query.offset}` : "";
   return executeQuery(conn, soql);
 }
